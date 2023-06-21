@@ -4,7 +4,6 @@
 
 void setup() {
     Serial.begin(9600);
-    Serial.println("teste");
     com::begin();
 }
 
@@ -13,7 +12,6 @@ void loop() {
     if (com::hasData()) {
         const buffer_t& buffer = com::getBuffer();
 
-        // com::process(buffer.data, buffer.len);
         keyboard::type(buffer.data, buffer.len);
 
         com::sendDone();

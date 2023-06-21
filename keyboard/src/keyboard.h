@@ -2,12 +2,6 @@
 #include "HID-Project.h"
 #include "debug.h"
 
-// const int buttonPin = 4;        // input pin for pushbutton
-// int previousButtonState = HIGH; // for checking the state of a pushButton
-// int counter = 0;                // button push counter
-
-int defaultDelay = 20; // default delay between key actions
-
 namespace keyboard {
     void begin() {BootKeyboard.begin();}
 

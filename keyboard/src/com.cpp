@@ -113,26 +113,5 @@ namespace com
     void sendDone() {
         data_buf.len = 0;
         start_parser = false;
-        // Serial.println("Done");
     }
-
-    // void setLED(int len) {
-    //     if (len > 1) { return; }
-    //     uint8_t receive;
-    //     Wire.readBytes(&receive, len);
-    //     Serial.println(receive);
-    //     if (receive == LOW) {
-    //         digitalWrite(ledPin, LOW);
-    //     }
-    //     else {
-    //         digitalWrite(ledPin, HIGH);
-    //     }
-    // }
-
-    // void receiveEvent2(int len) {
-    //     while (Wire.available()) { // loop through all but the last
-    //         char c = Wire.read(); // receive byte as a character
-    //         digitalWrite(ledPin, c);
-    //     }
-    // }
 }
