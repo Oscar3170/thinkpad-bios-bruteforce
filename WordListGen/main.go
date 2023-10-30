@@ -1,129 +1,116 @@
 package main
 
 import (
-	"fmt"
-	"strings"
+	"WordListGen/pkg"
+	"errors"
+	"io"
+	"log"
+	"os"
+
+	flag "github.com/spf13/pflag"
 )
 
-type Config struct {
-	WordReplacements map[string][]string
-	CharReplacements map[rune][]string
-	Endings          []string
-	Separators       []string
+type cmdFlags struct {
+	inputPath  string
+	outputPath string
+	configPath string
 }
 
-var DefaultConfig = &Config{
-	CharReplacements: map[rune][]string{
-		'o': {"0"},
-		'a': {"4", "@"},
-		'i': {"1", "l", "1"},
-	},
-	Endings:    []string{"1337", "420", "69", "!"},
-	Separators: []string{" ", "-", "_", ""},
-}
+var (
+	cmdArgs cmdFlags
+	config  *pkg.Config
+)
 
-func endingsCombinations(config *Config, words [][]string) [][]string {
-	iters := len(words)
+func setup() error {
+	flag.StringVarP(&cmdArgs.outputPath, "out", "o", "", "path to file containing the base passwords. Defaults to stdin")
+	flag.StringVarP(&cmdArgs.inputPath, "in", "i", "", "path to output file. Defaults to stdout")
+	flag.StringVarP(&cmdArgs.configPath, "config", "c", "", "config file path")
 
-	for _, ending := range config.Endings {
-		for i := 0; i < iters; i++ {
-			word := append(words[i], ending)
-			words = append(words, word)
+	flag.Parse()
+
+	if cmdArgs.configPath != "" {
+		var err error
+		config, err = pkg.ReadConfig(cmdArgs.configPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		config = pkg.DefaultConfig
+	}
+
+	if cmdArgs.inputPath == "" {
+		stat, _ := os.Stdin.Stat()
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			return errors.New("stdin is not pipe")
 		}
 	}
 
-	return words
+	return nil
 }
 
-// Get all the characters combinations using the config character replacements
-func charsCombinations(config *Config, word string) []string {
-	// words layout for input "foo":
-	// [ 'f', 'o', 'o'],
-	// [ 'f', '0', 'o'],
-	// [ 'f', 'o', '0'],
-	// [ 'f', '0', '0'],
-	var words [][]rune
+func readPasswords() (passwords [][]string, err error) {
+	var file io.Reader = os.Stdin
 
-	wordRune := []rune(word)
-	words = append(words, make([]rune, len(wordRune)))
-	for ichar, char := range wordRune {
-		iters := len(words)
-		// fmt.Printf("Character: %s\n", char)
-		// fmt.Printf("Words length: %d\n", iters)
-		for i := 0; i < iters; i++ {
-			words[i][ichar] = char
+	if cmdArgs.inputPath != "" {
+		osFile, err := os.Open(cmdArgs.inputPath)
+		if err != nil {
+			return nil, err
 		}
-
-		replacements, ok := config.CharReplacements[char]
-		if !ok {
-			continue
-		}
-
-		for _, r := range replacements {
-			for i := 0; i < iters; i++ {
-				newPerm := make([]rune, len(words[i]))
-				copy(newPerm, words[i])
-				if ichar+1 == len(wordRune) {
-					newPerm = append(newPerm[:ichar], []rune(r)...)
-				} else {
-					newPerm = append(newPerm[:ichar], append([]rune(r), newPerm[ichar:]...)...)
-				}
-				words = append(words, newPerm)
-				// fmt.Printf("%v\n", words)
-			}
-		}
-	}
-	fmt.Printf("Final words length: %d\n", len(words))
-
-	joinedWords := make([]string, len(words))
-	for iw, w := range words {
-		joinedWords[iw] = string(w)
+		defer osFile.Close()
+		file = osFile
 	}
 
-	return joinedWords
-
+	return pkg.ReadPasswords(file)
 }
 
-// TODO: replaceWords
-// TODO: separators
-// TODO: calculate the time to test all the passwords
-// TODO: write to a file by input password
-// TODO: config from file
+func writePasswords(passwords []string) error {
+	var file io.Writer = os.Stdout
+
+	if cmdArgs.outputPath != "" {
+		osFile, err := os.Create(cmdArgs.outputPath)
+		if err != nil {
+			return err
+		}
+		defer osFile.Close()
+
+		err = os.Chmod(cmdArgs.outputPath, 0600)
+		if err != nil {
+			return err
+		}
+		file = osFile
+	}
+
+	return pkg.DumpPasswords(file, passwords)
+}
 
 func main() {
-
-	passwords := [][]string{
-		{"foo", "bar"},
+	err := setup()
+	if err != nil {
+		log.Fatal(err)
 	}
 
+	passwords, err := readPasswords()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var generatedPasswords []string
 	for _, pwd := range passwords {
-		var generatedPwds [][]string
-		generatedPwds = append(generatedPwds, make([]string, len(pwd)))
-		copy(generatedPwds[0], pwd)
+		splitPwds := pkg.ReplaceWordsCombinations(config, [][]string{pwd})
 
-		for iword, word := range pwd {
-			iters := len(generatedPwds)
-			fmt.Printf("Word: %s\n", word)
-			fmt.Printf("Passwords length: %d\n", iters)
+		splitPwds = pkg.PwdCharsCombinations(config, splitPwds)
 
-			combinations := charsCombinations(DefaultConfig, word)
-			fmt.Printf("Combinations %v\n", combinations)
-			for _, c := range combinations[1:] {
-				for i := 0; i < iters; i++ {
-					newPwd := make([]string, len(generatedPwds[i]))
-					copy(newPwd, generatedPwds[i])
-					newPwd[iword] = c
-					generatedPwds = append(generatedPwds, newPwd)
-					// fmt.Printf("%v\n", generatedPwds)
-				}
-			}
-		}
+		pwds := pkg.SeparatorsCombinations(config, splitPwds)
 
-		generatedPwds = endingsCombinations(DefaultConfig, generatedPwds)
+		pwds = pkg.EndingsCombinations(config, pwds)
 
-		for _, generatedPwd := range generatedPwds {
-			fmt.Println(strings.Join(generatedPwd, "_"))
-
-		}
+		generatedPasswords = append(generatedPasswords, pwds...)
 	}
+
+	err = writePasswords(generatedPasswords)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Done")
 }
