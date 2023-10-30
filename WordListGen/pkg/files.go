@@ -12,7 +12,12 @@ func ReadPasswords(file io.Reader) ([][]string, error) {
 
 	var passwords [][]string
 	for scanner.Scan() {
-		pwd := strings.Split(scanner.Text(), " ")
+		text := scanner.Text()
+		text = strings.Trim(text, " ")
+		if len(text) == 0 || text[0] == '#' {
+			continue
+		}
+		pwd := strings.Split(text, " ")
 		passwords = append(passwords, pwd)
 	}
 
