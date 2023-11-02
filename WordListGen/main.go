@@ -114,5 +114,5 @@ func main() {
 	}
 
 	log.Printf("Generated %d passwords\n", len(generatedPasswords))
-	log.Printf("Would take %v\n", time.Duration(len(generatedPasswords)*3)*time.Second)
+	log.Printf("Would take %v\n", time.Duration(len(generatedPasswords))*3*time.Second)
 }

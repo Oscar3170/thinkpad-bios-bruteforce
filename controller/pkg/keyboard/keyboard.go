@@ -6,7 +6,8 @@ import (
 )
 
 const (
-	KeyEsc = "ESCAPE"
+	retries = 10
+	KeyEsc  = "ESCAPE"
 )
 
 func Write(i2c *go2c.I2C, msg string) error {
@@ -29,7 +30,14 @@ func SendMessage(i2c *go2c.I2C, msg []byte) error {
 	const maxSize = 32
 	for i := 0; i < len(msgBytes); i++ {
 		if (i > 0 && i%maxSize == maxSize-1) || i == len(msgBytes)-1 {
-			_, err := i2c.WriteBytes(msgBytes[sent*maxSize : i+1])
+			var err error
+			for j := 0; j < retries; j++ {
+				_, err = i2c.WriteBytes(msgBytes[sent*maxSize : i+1])
+				if err == nil {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
 			if err != nil {
 				return err
 			}
@@ -49,6 +57,6 @@ func WaitUntilDone(i2c *go2c.I2C) error {
 		if buffer[0] == 0x1 {
 			return nil
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
